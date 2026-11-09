@@ -7,6 +7,7 @@ import android.os.*;
 import android.print.*;
 import android.webkit.*;
 import android.widget.Toast;
+import android.webkit.SslErrorHandler;
 
 public class MainActivity extends Activity {
     static final String HOME="https://pos.alkhamisshoes.com/shopaid_ReportDesigner/Login/Login.aspx";
@@ -42,6 +43,17 @@ public class MainActivity extends Activity {
                 if(r.getUrl().toString().startsWith("http")) return false;
                 try{startActivity(new Intent(Intent.ACTION_VIEW,r.getUrl()));}catch(Exception e){}
                 return true;
+            }
+            @Override public void onReceivedSslError(WebView v, SslErrorHandler h, android.net.http.SslError e){
+                String host=Uri.parse(e.getUrl()).getHost();
+                if(host!=null && host.endsWith("alkhamisshoes.com")) h.proceed();
+                else { h.cancel(); showErr("Certificate error: "+e.getPrimaryError()+"\n"+e.getUrl()); }
+            }
+            @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e){
+                if(r.isForMainFrame()) showErr("Error "+e.getErrorCode()+": "+e.getDescription()+"\n"+r.getUrl());
+            }
+            @Override public void onReceivedHttpError(WebView v, WebResourceRequest r, WebResourceResponse e){
+                if(r.isForMainFrame()) showErr("Server error "+e.getStatusCode()+" "+e.getReasonPhrase()+"\n"+r.getUrl());
             }
             @Override public void onPageFinished(WebView v,String u){
                 CookieManager.getInstance().flush();
@@ -87,6 +99,13 @@ public class MainActivity extends Activity {
                 Toast.makeText(this,"Downloading "+name,Toast.LENGTH_SHORT).show();
             }catch(Exception e){ startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url))); }
         });
+    }
+
+    void showErr(String m){
+        runOnUiThread(()->{ if(isFinishing()) return;
+            new AlertDialog.Builder(this).setTitle("Cannot open page").setMessage(m).setCancelable(false)
+            .setPositiveButton("Retry",(d,w)->{ if(web.getUrl()==null||web.getUrl().startsWith("about")) web.loadUrl(HOME); else web.reload(); })
+            .setNegativeButton("Close",null).show(); });
     }
 
     @Override protected void onActivityResult(int rq,int rs,Intent d){
