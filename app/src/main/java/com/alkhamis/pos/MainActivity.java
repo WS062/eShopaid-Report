@@ -7,17 +7,23 @@ import android.os.*;
 import android.print.*;
 import android.webkit.*;
 import android.widget.Toast;
+import android.widget.EditText;
+import android.text.InputType;
 import android.webkit.SslErrorHandler;
 
 public class MainActivity extends Activity {
     static final String HOME="https://pos.alkhamisshoes.com/shopaid_ReportDesigner/Login/Login.aspx";
     static final int FILE_REQ=1001;
-    WebView web; ValueCallback<Uri[]> fileCb;
+    WebView web; ValueCallback<Uri[]> fileCb; SharedPreferences prefs; String home;
 
     @Override protected void onCreate(Bundle b){
         super.onCreate(b);
         web=new WebView(this); setContentView(web); setup(web, null);
-        if(b==null) web.loadUrl(HOME); else web.restoreState(b);
+        prefs=getSharedPreferences("cfg",MODE_PRIVATE);
+        home=prefs.getString("url",null);
+        if(b!=null) web.restoreState(b);
+        else if(home==null) askUrl(true);
+        else web.loadUrl(home);
     }
 
     void setup(final WebView w, final Dialog owner){
@@ -46,7 +52,8 @@ public class MainActivity extends Activity {
             }
             @Override public void onReceivedSslError(WebView v, SslErrorHandler h, android.net.http.SslError e){
                 String host=Uri.parse(e.getUrl()).getHost();
-                if(host!=null && host.endsWith("alkhamisshoes.com")) h.proceed();
+                String mine=home==null?null:Uri.parse(home).getHost();
+                if(host!=null && (host.endsWith("alkhamisshoes.com") || host.equals(mine))) h.proceed();
                 else { h.cancel(); showErr("Certificate error: "+e.getPrimaryError()+"\n"+e.getUrl()); }
             }
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e){
@@ -101,10 +108,31 @@ public class MainActivity extends Activity {
         });
     }
 
+    void askUrl(boolean first){
+        final EditText et=new EditText(this);
+        et.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
+        et.setSingleLine(true);
+        et.setText(home!=null?home:HOME);
+        et.setSelectAllOnFocus(true);
+        AlertDialog.Builder bld=new AlertDialog.Builder(this)
+            .setTitle("Enter server URL").setMessage("Login page address").setView(et)
+            .setCancelable(!first)
+            .setPositiveButton("Save",(d,w)->{
+                String u=et.getText().toString().trim();
+                if(u.isEmpty()){ askUrl(first); return; }
+                if(!u.startsWith("http")) u="https://"+u;
+                home=u; prefs.edit().putString("url",u).apply();
+                web.clearHistory(); web.loadUrl(u);
+            });
+        if(!first) bld.setNegativeButton("Cancel",null);
+        bld.show();
+    }
+
     void showErr(String m){
         runOnUiThread(()->{ if(isFinishing()) return;
             new AlertDialog.Builder(this).setTitle("Cannot open page").setMessage(m).setCancelable(false)
-            .setPositiveButton("Retry",(d,w)->{ if(web.getUrl()==null||web.getUrl().startsWith("about")) web.loadUrl(HOME); else web.reload(); })
+            .setPositiveButton("Retry",(d,w)->{ if(home==null) askUrl(true); else if(web.getUrl()==null||web.getUrl().startsWith("about")) web.loadUrl(home); else web.reload(); })
+            .setNeutralButton("Change URL",(d,w)->askUrl(false))
             .setNegativeButton("Close",null).show(); });
     }
 
@@ -113,5 +141,11 @@ public class MainActivity extends Activity {
         if(rq==FILE_REQ&&fileCb!=null){fileCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(rs,d));fileCb=null;}
     }
     @Override protected void onSaveInstanceState(Bundle o){super.onSaveInstanceState(o);web.saveState(o);}
-    @Override public void onBackPressed(){ if(web.canGoBack()) web.goBack(); else super.onBackPressed(); }
+    @Override public void onBackPressed(){
+        if(web.canGoBack()){ web.goBack(); return; }
+        new AlertDialog.Builder(this).setTitle("eShopaid Mobile Reports")
+            .setPositiveButton("Exit",(d,w)->finish())
+            .setNeutralButton("Change URL",(d,w)->askUrl(false))
+            .setNegativeButton("Cancel",null).show();
+    }
 }
