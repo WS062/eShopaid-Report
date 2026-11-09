@@ -12,7 +12,6 @@ import android.text.InputType;
 import android.webkit.SslErrorHandler;
 
 public class MainActivity extends Activity {
-    static final String HOME="https://pos.alkhamisshoes.com/shopaid_ReportDesigner/Login/Login.aspx";
     static final int FILE_REQ=1001;
     WebView web; ValueCallback<Uri[]> fileCb; SharedPreferences prefs; String home;
 
@@ -53,7 +52,7 @@ public class MainActivity extends Activity {
             @Override public void onReceivedSslError(WebView v, SslErrorHandler h, android.net.http.SslError e){
                 String host=Uri.parse(e.getUrl()).getHost();
                 String mine=home==null?null:Uri.parse(home).getHost();
-                if(host!=null && (host.endsWith("alkhamisshoes.com") || host.equals(mine))) h.proceed();
+                if(host!=null && host.equals(mine)) h.proceed();
                 else { h.cancel(); showErr("Certificate error: "+e.getPrimaryError()+"\n"+e.getUrl()); }
             }
             @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e){
@@ -112,7 +111,8 @@ public class MainActivity extends Activity {
         final EditText et=new EditText(this);
         et.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
         et.setSingleLine(true);
-        et.setText(home!=null?home:HOME);
+        et.setText(home!=null?home:"");
+        et.setHint("https://your-server/Login/Login.aspx");
         et.setSelectAllOnFocus(true);
         AlertDialog.Builder bld=new AlertDialog.Builder(this)
             .setTitle("Enter server URL").setMessage("Login page address").setView(et)
